@@ -316,13 +316,17 @@ if __name__=='__main__':
      #Test:
      
      rd.populate(station_id,datetime.datetime(2008,3,20),data_type)
-     validation=signal.detrend(rd.data)
+     validation=rd.data
+     
      for wdx in np.arange(48):
-          Pxx=plt.psd(validation[wdx*1800:(wdx+1)*1800], NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)
+          validation_data=signal.detrend(rd.select_data(wdx*0.5, 0.5))
+          Pxx=plt.psd(validation_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)
           if wdx==0:
-              X_validation=Pxx[0]
+              X_val=Pxx[0]
           else:
-              X_validation=np.vstack((X_validation,Pxx[0]))
+              X_val=np.vstack((X_val,Pxx[0]))
+              
+     X_validation = preprocessing.scale(X_val)       
      prediction=clf.predict(X_validation)
      rd.plot_prediction(prediction, Fs=1,title=str(data_type)+'_'+str(date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
 
@@ -330,7 +334,7 @@ if __name__=='__main__':
 classes = {0: 'noisy', 1: 'clean'}
 fig, axes = plt.subplots(3,3)
 fig.subplots_adjust(hspace=1)
-for ax, i in zip(axes.flatten(), np.arange(9,18)):
+for ax, i in zip(axes.flatten(), np.arange(0,9)):
      ax.plot(X_train[i]) 
      ax.set(title=classes[y_train[i]].upper())
      
