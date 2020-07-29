@@ -198,10 +198,12 @@ class RawData(object):
         for wdx in np.arange(48):
              if str(classes[prediction[wdx]])=='noisy':
                   ax0.axvline(int(wdx*1800*Fs),color='red',linestyle='--', label='test')
+                  ax0.axvspan(int(wdx*1800*Fs), int(wdx*1800*Fs+1800*Fs), alpha=0.5, color='red')
                   ax0.text(int(wdx*1800*Fs),np.max(self.decimated_data),str(classes[prediction[wdx]]),rotation=90, color='red')
              else:
-                  ax0.axvline(int(wdx*1800*Fs),color='black',linestyle='--', label='test')
+#                  ax0.axvline(int(wdx*1800*Fs),color='black',linestyle='--', label='test')
                   ax0.text(int(wdx*1800*Fs),np.max(self.decimated_data),str(classes[prediction[wdx]]),rotation=90, color='black')
+        
         ax0.set_xlim(left=0,right=86400*Fs)
         
         ax1 = fig.add_subplot(2,2,(3,4))
@@ -314,8 +316,8 @@ if __name__=='__main__':
      print("Model accuracy: {:.2f}%".format(clf.score(X_test, y_test)*100))
      
      #Test:
-     
-     rd.populate(station_id,datetime.datetime(2008,3,20),data_type)
+     validation_date=datetime.datetime(2006,1,1)
+     rd.populate('kny',validation_date,data_type)
      validation=rd.data
      
      for wdx in np.arange(48):
@@ -328,13 +330,13 @@ if __name__=='__main__':
               
      X_validation = preprocessing.scale(X_val)       
      prediction=clf.predict(X_validation)
-     rd.plot_prediction(prediction, Fs=1,title=str(data_type)+'_'+str(date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
+     rd.plot_prediction(prediction, Fs=1,title=str(data_type)+'_'+str(validation_date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
 
 
-classes = {0: 'noisy', 1: 'clean'}
-fig, axes = plt.subplots(3,3)
-fig.subplots_adjust(hspace=1)
-for ax, i in zip(axes.flatten(), np.arange(0,9)):
-     ax.plot(X_train[i]) 
-     ax.set(title=classes[y_train[i]].upper())
-     
+#classes = {0: 'noisy', 1: 'clean'}
+#fig, axes = plt.subplots(3,3)
+#fig.subplots_adjust(hspace=1)
+#for ax, i in zip(axes.flatten(), np.arange(0,9)):
+#     ax.plot(X_train[i]) 
+#     ax.set(title=classes[y_train[i]].upper())
+#     
