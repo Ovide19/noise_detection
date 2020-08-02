@@ -269,74 +269,77 @@ if __name__=='__main__':
      root_folder='/media/sheldon/Elements SE/'
      input_folder='usgs_japan_pre2010'
      
-     X_noisy=[]
-     X_clean=[]
-     
-     for idx in np.arange(number_of_days):
-          date=start_date+datetime.timedelta(int(idx))
-          print(date)
-          rd=RawData() 
-          rd.populate(station_id,date,data_type)
-#          rd.plot_specgram_of_decimated_data(Fs=0.2,title=str(data_type)+'_'+str(date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
+     if os.path.isdir(root_folder):
           
-          noisy_data = signal.detrend(rd.select_data(start_time_noise, 0.5))
-          clean_data = signal.detrend(rd.select_data(start_time_clean, 0.5))
-
-          #Compute PSD
-          Nxx=None
-          Nxx=plt.psd(noisy_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)
-          Cxx=None
-          Cxx=plt.psd(clean_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)        
-
-#          plot_selected_time_series(noisy_data, clean_data)
-#          plot_selected_spectra(Nxx, Cxx)          
-          if idx==0:
-               X_noisy=np.log(Nxx[0])
-               X_clean=np.log(Cxx[0])
-          else:
-               X_noisy=np.vstack((X_noisy,Nxx[0]))
-               X_clean=np.vstack((X_clean,Cxx[0]))
+     
+     
+          X_noisy=[]
+          X_clean=[]
           
-     X=np.vstack((X_noisy,X_clean))
-     y_noisy=np.zeros((idx+1))
-     y_clean=np.ones((idx+1))
-     y=np.hstack((y_noisy,y_clean))
-     X_scaled = preprocessing.scale(X)
+          for idx in np.arange(number_of_days):
+               date=start_date+datetime.timedelta(int(idx))
+               print(date)
+               rd=RawData() 
+               rd.populate(station_id,date,data_type)
+     #          rd.plot_specgram_of_decimated_data(Fs=0.2,title=str(data_type)+'_'+str(date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
+               noisy_data = signal.detrend(rd.select_data(start_time_noise, 0.5))
+               clean_data = signal.detrend(rd.select_data(start_time_clean, 0.5))
      
-     #Normalize data
-#     X=X/X.max()
-#     y=y/y.max()
+               #Compute PSD
+               Nxx=None
+               Nxx=plt.psd(noisy_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)
+               Cxx=None
+               Cxx=plt.psd(clean_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)        
      
-#     X, y = shuffle(X, y, random_state=0)
-     X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.1)
+     #          plot_selected_time_series(noisy_data, clean_data)
+     #          plot_selected_spectra(Nxx, Cxx)          
+               if idx==0:
+                    X_noisy=np.log(Nxx[0])
+                    X_clean=np.log(Cxx[0])
+               else:
+                    X_noisy=np.vstack((X_noisy,Nxx[0]))
+                    X_clean=np.vstack((X_clean,Cxx[0]))
+               
+          X=np.vstack((X_noisy,X_clean))
+          y_noisy=np.zeros((idx+1))
+          y_clean=np.ones((idx+1))
+          y=np.hstack((y_noisy,y_clean))
+          X_scaled = preprocessing.scale(X)
+          
+          #Normalize data
+     #     X=X/X.max()
+     #     y=y/y.max()
+          
+     #     X, y = shuffle(X, y, random_state=0)
+          X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.1)
+          
+          clf = LogisticRegression()
+     #     X_train_lr, y_train_lr = X_train.T, y_train.T.ravel()
+          clf.fit(X_train, y_train)
+          print("Model accuracy: {:.2f}%".format(clf.score(X_test, y_test)*100))
+          
+          #Test:
+          validation_date=datetime.datetime(2010,1,3)
+          rd.populate('kak',validation_date,data_type)
+          validation=rd.data
+          
+          for wdx in np.arange(48):
+               validation_data=signal.detrend(rd.select_data(wdx*0.5, 0.5))
+               Pxx=plt.psd(validation_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)
+               if wdx==0:
+                   X_val=Pxx[0]
+               else:
+                   X_val=np.vstack((X_val,Pxx[0]))
+                   
+          X_validation = preprocessing.scale(X_val)       
+          prediction=clf.predict(X_validation)
+          rd.plot_prediction(prediction, Fs=1,title=str(data_type)+'_'+str(validation_date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
      
-     clf = LogisticRegression()
-#     X_train_lr, y_train_lr = X_train.T, y_train.T.ravel()
-     clf.fit(X_train, y_train)
-     print("Model accuracy: {:.2f}%".format(clf.score(X_test, y_test)*100))
      
-     #Test:
-     validation_date=datetime.datetime(2006,1,1)
-     rd.populate('kny',validation_date,data_type)
-     validation=rd.data
-     
-     for wdx in np.arange(48):
-          validation_data=signal.detrend(rd.select_data(wdx*0.5, 0.5))
-          Pxx=plt.psd(validation_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)
-          if wdx==0:
-              X_val=Pxx[0]
-          else:
-              X_val=np.vstack((X_val,Pxx[0]))
-              
-     X_validation = preprocessing.scale(X_val)       
-     prediction=clf.predict(X_validation)
-     rd.plot_prediction(prediction, Fs=1,title=str(data_type)+'_'+str(validation_date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
-
-
-#classes = {0: 'noisy', 1: 'clean'}
-#fig, axes = plt.subplots(3,3)
-#fig.subplots_adjust(hspace=1)
-#for ax, i in zip(axes.flatten(), np.arange(0,9)):
-#     ax.plot(X_train[i]) 
-#     ax.set(title=classes[y_train[i]].upper())
-#     
+     #classes = {0: 'noisy', 1: 'clean'}
+     #fig, axes = plt.subplots(3,3)
+     #fig.subplots_adjust(hspace=1)
+     #for ax, i in zip(axes.flatten(), np.arange(0,9)):
+     #     ax.plot(X_train[i]) 
+     #     ax.set(title=classes[y_train[i]].upper())
+     #     
