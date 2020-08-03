@@ -85,6 +85,7 @@ class Tests(unittest.TestCase):
      
      def test_data_folder(self, path):
           self.assertTrue(os.path.isdir(path))
+          
 
 class RawData(object):
 
@@ -188,10 +189,24 @@ class RawData(object):
         plt.close(fig)       
 
 
+    def select_data(self, start_time, duration_in_hours):
+        selected_data=rd.data[int(start_time*3600):int((start_time+duration)*3600)]
+        return selected_data
+
+class ValidationData(RawData):
+
+    def __init__(self):
+        self.date = None
+        self.year = None
+        self.station_id= None
+        self.data = None
+        self.decimated_data = None
+        self.number_of_missing_samples = 0
+        self.data_type = None     
+     
     def plot_prediction(self, prediction, prediction_proba, Fs, title='', x_label='', y_label='', fig_size=None): 
         classes = {0: 'noisy',
            1: 'clean'}
-
 
         
         plt.ioff()
@@ -231,9 +246,7 @@ class RawData(object):
         plt.savefig(self.date.strftime('%Y%m%d')+'.png')
         plt.close(fig)      
 
-    def select_data(self, start_time, duration_in_hours):
-        selected_data=rd.data[int(start_time*3600):int((start_time+duration)*3600)]
-        return selected_data
+
          
 def plot_selected_data(first_chunk, second_chunk):   
    fig = plt.figure() 
@@ -273,13 +286,49 @@ def show_psd(X, y, idx) :
   plt.plot(X[idx,:],color=colors[y[idx]])
   plt.title("This is a {}".format(classes[y[idx]])+" interval")
   plt.show()   
+
+def analyze_validation_data(station, validation_date, data_type):
+     #Test:
+     vd=ValidationData()
+
+     vd.populate(station,validation_date,data_type)
+     validation=vd.data
+     
+
+     
+     for wdx in np.arange(48):
+          validation_data=signal.detrend(rd.select_data(wdx*0.5, 0.5))
+          Pxx=plt.psd(validation_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)
+          if wdx==0:
+              X_val=Pxx[0]
+          else:
+              X_val=np.vstack((X_val,Pxx[0]))
+
+     X_validation = preprocessing.scale(X_val)       
+     prediction=clf.predict(X_validation)
+     prediction_proba=clf.predict_proba(X_validation)
+     vd.plot_prediction(prediction, prediction_proba, Fs=1,title=str(data_type)+'_'+str(validation_date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
+
+     classes = {0: 'noisy', 1: 'clean'}
+     fig, axes = plt.subplots(8,6)
+     fig.subplots_adjust(hspace=1)     
+
+     for ax, i in zip(axes.flatten(), np.arange(48)):
+          ax.plot(X_train[i]) 
+          ax.set(title=classes[y_train[i]].upper())
+     fig.set_size_inches(37, 10) 
+     plt.savefig('sample_data.png') 
+
+
+
+     
+          
+
    
 if __name__=='__main__':
+     
      delta=end_date-start_date
      number_of_days=delta.days
-     data_type='Z'
-     root_folder='/media/sheldon/Elements SE/'
-     input_folder='usgs_japan_pre2010'
      strings = [root_folder, input_folder]
      path_to_data=''.join(strings)
      
@@ -287,21 +336,19 @@ if __name__=='__main__':
      mytests=Tests()
      mytests.test_data_folder(path_to_data)
 
-     
-
-     
      try:
           clf
      except NameError:
-          print("Variable is not defined....!")
+          print("clf model does not exist yet")
+          
+          
           for idx in np.arange(number_of_days):
                date=start_date+datetime.timedelta(int(idx))
                print(date)
                rd=RawData() 
                rd.populate(station_id,date,data_type)
-     #          rd.plot_specgram_of_decimated_data(Fs=0.2,title=str(data_type)+'_'+str(date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
-               noisy_data = signal.detrend(rd.select_data(start_time_noise, 0.5))
-               clean_data = signal.detrend(rd.select_data(start_time_clean, 0.5))
+               noisy_data = signal.detrend(rd.select_data(start_time_noise, duration))
+               clean_data = signal.detrend(rd.select_data(start_time_clean, duration))
      
                #Compute PSD
                Nxx=None
@@ -309,50 +356,28 @@ if __name__=='__main__':
                Cxx=None
                Cxx=plt.psd(clean_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)        
      
-     #          plot_selected_time_series(noisy_data, clean_data)
-     #          plot_selected_spectra(Nxx, Cxx)          
                if idx==0:
                     X_noisy=np.log(Nxx[0])
                     X_clean=np.log(Cxx[0])
                else:
                     X_noisy=np.vstack((X_noisy,Nxx[0]))
                     X_clean=np.vstack((X_clean,Cxx[0]))
-               
-          X=np.vstack((X_noisy,X_clean))
-          y_noisy=np.zeros((idx+1))
-          y_clean=np.ones((idx+1))
-          y=np.hstack((y_noisy,y_clean))
-          X_scaled = preprocessing.scale(X)
-          X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.1)
           
+               X=np.vstack((X_noisy,X_clean))
+               y_noisy=np.zeros((idx+1))
+               y_clean=np.ones((idx+1))
+               y=np.hstack((y_noisy,y_clean))
+               X_scaled = preprocessing.scale(X)
+               X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.1)
+     
           clf = LogisticRegression()
           clf.fit(X_train, y_train)
           print("Model accuracy: {:.2f}%".format(clf.score(X_test, y_test)*100))
-     else:
-          #Test:
-          rd=RawData()
-          validation_date=datetime.datetime(2005,1,1)
-          rd.populate('kak',validation_date,data_type)
-          validation=rd.data
           
-          for wdx in np.arange(48):
-               validation_data=signal.detrend(rd.select_data(wdx*0.5, 0.5))
-               Pxx=plt.psd(validation_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)
-               if wdx==0:
-                   X_val=Pxx[0]
-               else:
-                   X_val=np.vstack((X_val,Pxx[0]))
-                   
-          X_validation = preprocessing.scale(X_val)       
-          prediction=clf.predict(X_validation)
-          prediction_proba=clf.predict_proba(X_validation)
-          rd.plot_prediction(prediction, prediction_proba, Fs=1,title=str(data_type)+'_'+str(validation_date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
-
-
-     #classes = {0: 'noisy', 1: 'clean'}
-     #fig, axes = plt.subplots(3,3)
-     #fig.subplots_adjust(hspace=1)
-     #for ax, i in zip(axes.flatten(), np.arange(0,9)):
-     #     ax.plot(X_train[i]) 
-     #     ax.set(title=classes[y_train[i]].upper())
-     #     
+          validation_date=datetime.datetime(2005,1,1)
+          analyze_validation_data(station, validation_date, data_type)
+          plot_sample_data(0)
+          
+     else:
+          validation_date=datetime.datetime(2005,1,1)
+          analyze_validation_data(station, validation_date, data_type)
