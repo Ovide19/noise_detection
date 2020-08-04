@@ -295,10 +295,13 @@ def analyze_validation_data(station, validation_date, data_type):
           Pxx=plt.psd(validation_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)
           if wdx==0:
               X_val=Pxx[0]
+              
           else:
               X_val=np.vstack((X_val,Pxx[0]))
 
-     X_validation = preprocessing.scale(X_val)       
+     
+ 
+     X_validation = preprocessing.scale(X_val,0)       
      prediction=clf.predict(X_validation)
      prediction_proba=clf.predict_proba(X_validation)
      vd.plot_prediction(prediction, prediction_proba, Fs=1,title=str(data_type)+'_'+str(validation_date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
@@ -356,7 +359,7 @@ if __name__=='__main__':
                y_noisy=np.zeros((idx+1))
                y_clean=np.ones((idx+1))
                y=np.hstack((y_noisy,y_clean))
-               X_scaled = preprocessing.scale(X)
+               X_scaled = preprocessing.scale(X,0)
                X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.1)
                
 
