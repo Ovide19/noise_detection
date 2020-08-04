@@ -198,15 +198,7 @@ class RawData(object):
 
 class ValidationData(RawData):
 
-    def __init__(self):
-        self.date = None
-        self.year = None
-        self.station_id= None
-        self.data = None
-        self.decimated_data = None
-        self.number_of_missing_samples = 0
-        self.data_type = None     
-     
+
     def plot_prediction(self, prediction, prediction_proba, Fs, title='', x_label='', y_label='', fig_size=None): 
         classes = {0: 'noisy',
            1: 'clean'}
@@ -292,16 +284,14 @@ def show_psd(X, y, idx) :
   plt.show()   
 
 def analyze_validation_data(station, validation_date, data_type):
+     duration=0.5
      #Test:
      vd=ValidationData()
      
      vd.populate(station,validation_date,data_type)
-     validation=vd.data
-     
 
-     
      for wdx in np.arange(48):
-          validation_data=signal.detrend(rd.select_data(wdx*0.5, 0.5))
+          validation_data=signal.detrend(vd.select_data(wdx*duration, duration))
           Pxx=plt.psd(validation_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)
           if wdx==0:
               X_val=Pxx[0]
@@ -317,17 +307,11 @@ def analyze_validation_data(station, validation_date, data_type):
      colors = {0: 'red', 1: 'blue'}
      fig, axes = plt.subplots(8,6)
      fig.subplots_adjust(hspace=1)     
-
-     for ax, i in zip(axes.flatten(), np.arange(48)):
-          ax.plot(X_train[i], colors[y_train[i]])
-          ax.set(title=classes[y_train[i]].upper())
+     for ax, wdx in zip(axes.flatten(), np.arange(48)):
+          ax.plot(X_validation[wdx], colors[prediction[wdx]])
+          ax.set(title=','.join((classes[prediction[wdx]],str(wdx))).upper())
      fig.set_size_inches(37, 10) 
      plt.savefig(validation_date.strftime('%Y%m%d')+'_windows.png') 
-
-
-
-     
-          
 
    
 if __name__=='__main__':
@@ -362,8 +346,8 @@ if __name__=='__main__':
                Cxx=plt.psd(clean_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)        
      
                if idx==0:
-                    X_noisy=np.log(Nxx[0])
-                    X_clean=np.log(Cxx[0])
+                    X_noisy=Nxx[0]
+                    X_clean=Cxx[0]
                else:
                     X_noisy=np.vstack((X_noisy,Nxx[0]))
                     X_clean=np.vstack((X_clean,Cxx[0]))
@@ -378,7 +362,6 @@ if __name__=='__main__':
 
      
           clf = LogisticRegression()
-#          clf = svm.SVC()
 
           clf.fit(X_train, y_train)
           print("Model accuracy: {:.2f}%".format(clf.score(X_test, y_test)*100))
@@ -388,7 +371,7 @@ if __name__=='__main__':
           analyze_validation_data(station, validation_date, data_type)
           
           
-          y_score = clf.fit(X_train, y_train).decision_function(X_test)
+
 
 
           
