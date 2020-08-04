@@ -359,8 +359,8 @@ if __name__=='__main__':
                y_noisy=np.zeros((idx+1))
                y_clean=np.ones((idx+1))
                y=np.hstack((y_noisy,y_clean))
-               X_scaled = preprocessing.scale(X,0)
-               X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.1)
+               X_scaled = preprocessing.scale(X)
+               X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.35)
                
 
      
