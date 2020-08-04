@@ -33,6 +33,9 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import precision_recall_curve
 from sklearn.exceptions import NotFittedError
 import unittest
+from sklearn import svm
+from sklearn.metrics import roc_curve, auc
+from sklearn.metrics import roc_auc_score
 
 def nan_helper(y):
         "Taken from https://stackoverflow.com/questions/6518811/interpolate-nan-values-in-a-numpy-array"
@@ -224,12 +227,13 @@ class ValidationData(RawData):
                   ax0.axvspan(int(wdx*1800*Fs), int(wdx*1800*Fs+1800*Fs), alpha=0.5, color='red')
                   ax0.text(int(wdx*1800*Fs),np.max(self.decimated_data),str(classes[prediction[wdx]]),rotation=90, color='red')
              else:
+                  ax0.axvspan(int(wdx*1800*Fs), int(wdx*1800*Fs+1800*Fs), alpha=0.5, color='blue')
 #                  ax0.axvline(int(wdx*1800*Fs),color='black',linestyle='--', label='test')
                   ax0.text(int(wdx*1800*Fs),np.max(self.decimated_data),str(classes[prediction[wdx]]),rotation=90, color='black')
                   
         ax0.set_xlim(left=0,right=86400*Fs)
         ax1 = ax0.twinx()
-        ax1.scatter(np.arange(48)*1800*Fs, prediction_proba[:,0], color='red')
+        ax1.scatter(np.arange(48)*1800*Fs+900, prediction_proba[:,0], color='black')
         ax1.set_ylabel("Probability",fontsize=20)
         ax1.tick_params(labelsize=20)
 
@@ -290,7 +294,7 @@ def show_psd(X, y, idx) :
 def analyze_validation_data(station, validation_date, data_type):
      #Test:
      vd=ValidationData()
-
+     
      vd.populate(station,validation_date,data_type)
      validation=vd.data
      
@@ -310,14 +314,15 @@ def analyze_validation_data(station, validation_date, data_type):
      vd.plot_prediction(prediction, prediction_proba, Fs=1,title=str(data_type)+'_'+str(validation_date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
 
      classes = {0: 'noisy', 1: 'clean'}
+     colors = {0: 'red', 1: 'blue'}
      fig, axes = plt.subplots(8,6)
      fig.subplots_adjust(hspace=1)     
 
      for ax, i in zip(axes.flatten(), np.arange(48)):
-          ax.plot(X_train[i]) 
+          ax.plot(X_train[i], colors[y_train[i]])
           ax.set(title=classes[y_train[i]].upper())
      fig.set_size_inches(37, 10) 
-     plt.savefig('sample_data.png') 
+     plt.savefig(validation_date.strftime('%Y%m%d')+'_windows.png') 
 
 
 
@@ -369,15 +374,26 @@ if __name__=='__main__':
                y=np.hstack((y_noisy,y_clean))
                X_scaled = preprocessing.scale(X)
                X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.1)
+               
+
      
           clf = LogisticRegression()
+#          clf = svm.SVC()
+
           clf.fit(X_train, y_train)
           print("Model accuracy: {:.2f}%".format(clf.score(X_test, y_test)*100))
-          
-          validation_date=datetime.datetime(2005,1,1)
+          station='kak'
+          validation_date=datetime.datetime(2005,4,1)
+          data_type='Z'
           analyze_validation_data(station, validation_date, data_type)
-          plot_sample_data(0)
+          
+          
+          y_score = clf.fit(X_train, y_train).decision_function(X_test)
+
+
           
      else:
-          validation_date=datetime.datetime(2005,1,1)
+          station='kak'
+          validation_date=datetime.datetime(2005,4,1)
+          data_type='Z'
           analyze_validation_data(station, validation_date, data_type)
