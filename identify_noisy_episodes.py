@@ -192,9 +192,18 @@ class RawData(object):
         plt.close(fig)       
 
 
-    def select_data(self, start_time, duration_in_hours):
-        selected_data=rd.data[int(start_time*3600):int((start_time+duration)*3600)]
-        return selected_data
+#    def select_data(self, start_time, duration_in_hours):
+#        selected_data=rd.data[int(start_time*3600):int((start_time+duration)*3600)]
+#        return selected_data
+   
+     
+    def select_decimate_and_detrend_data(self, start_time, duration_in_hours, decimation_level):
+        selected_data=rd.data[int(start_time*3600):int((start_time+duration_in_hours)*3600)]
+        selected_decimated_and_detrended_data=signal.detrend(signal.decimate(selected_data,decimation_level,ftype='iir', axis=-1, zero_phase=True))
+        return selected_decimated_and_detrended_data     
+     
+
+
 
 class ValidationData(RawData):
 
@@ -291,34 +300,39 @@ def analyze_validation_data(station, validation_date, data_type):
      vd.populate(station,validation_date,data_type)
 
      for wdx in np.arange(48):
-          validation_data=signal.detrend(vd.select_data(wdx*duration, duration))
-          Pxx=plt.psd(validation_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)
+#          validation_data=signal.detrend(vd.select_data(wdx*duration, duration))
+          validation_data = signal.detrend(signal.decimate(vd.select_data(wdx*duration, duration),5,ftype='iir', axis=-1, zero_phase=True))
+
+#          Pxx = plt.psd(validation_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)
+          Pxx = plt.psd(validation_data, NFFT=1024, Fs=0.2, detrend='mean',scale_by_freq=True)
+          Roger, freqs = plt.psd(validation_data, NFFT=1024, Fs=0.2, detrend='mean',scale_by_freq=True)
           if wdx==0:
               X_val=Pxx[0]
               
           else:
               X_val=np.vstack((X_val,Pxx[0]))
+     pdb.set_trace()
+#     X_validation = preprocessing.scale(X_val,0)       
+     X_validation = X_val      
 
-     
- 
-     X_validation = preprocessing.scale(X_val,0)       
      prediction=clf.predict(X_validation)
      prediction_proba=clf.predict_proba(X_validation)
-     vd.plot_prediction(prediction, prediction_proba, Fs=1,title=str(data_type)+'_'+str(validation_date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
-
+     vd.plot_prediction(prediction, prediction_proba, Fs=0.2,title=str(data_type)+'_'+str(validation_date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
      classes = {0: 'noisy', 1: 'clean'}
      colors = {0: 'red', 1: 'blue'}
      fig, axes = plt.subplots(8,6)
      fig.subplots_adjust(hspace=1)     
      for ax, wdx in zip(axes.flatten(), np.arange(48)):
-          ax.plot(X_validation[wdx], colors[prediction[wdx]])
+          ax.semilogx(freqs, X_validation[wdx], colors[prediction[wdx]])
           ax.set(title=','.join((classes[prediction[wdx]],str(wdx))).upper())
      fig.set_size_inches(37, 10) 
      plt.savefig(validation_date.strftime('%Y%m%d')+'_windows.png') 
 
    
 if __name__=='__main__':
-     
+#     os.mkdir('./training_data')
+     decimation_level=5
+     dedcimated_frequency=1/decimation_level
      delta=end_date-start_date
      number_of_days=delta.days
      strings = [root_folder, input_folder]
@@ -333,43 +347,54 @@ if __name__=='__main__':
      except NameError:
           print("clf model does not exist yet")
           
-          
           for idx in np.arange(number_of_days):
                date=start_date+datetime.timedelta(int(idx))
                print(date)
                rd=RawData() 
                rd.populate(station_id,date,data_type)
-               noisy_data = signal.detrend(rd.select_data(start_time_noise, duration))
-               clean_data = signal.detrend(rd.select_data(start_time_clean, duration))
-     
-               #Compute PSD
+               
+               noisy_data = rd.select_decimate_and_detrend_data(start_time_noise, duration, decimation_level)
+               clean_data = rd.select_decimate_and_detrend_data(start_time_clean, duration, decimation_level)
+
+      
                Nxx=None
-               Nxx=plt.psd(noisy_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)
+               Nxx, freqs=plt.psd(noisy_data, NFFT=1024, Fs=dedcimated_frequency, detrend='mean',scale_by_freq=True)
                Cxx=None
-               Cxx=plt.psd(clean_data, NFFT=1024, Fs=1, detrend='mean',scale_by_freq=True)        
-     
+               Cxx, freqs=plt.psd(clean_data, NFFT=1024, Fs=dedcimated_frequency, detrend='mean',scale_by_freq=True) 
+               
+               plt.clf()
+               plt.plot(Nxx[0:513]/np.max(Nxx[0:513]), color='red', label='noisy')
+               plt.plot(Cxx[0:513]/np.max(Cxx[0:513]), color='blue', label='clean')
+               plt.legend()
+               plt.savefig('./training_data/'+str(idx)+'.png')
+               
+
                if idx==0:
-                    X_noisy=Nxx[0]
-                    X_clean=Cxx[0]
+                    X_noisy=Nxx
+                    X_clean=Cxx
                else:
-                    X_noisy=np.vstack((X_noisy,Nxx[0]))
-                    X_clean=np.vstack((X_clean,Cxx[0]))
-          
-               X=np.vstack((X_noisy,X_clean))
-               y_noisy=np.zeros((idx+1))
-               y_clean=np.ones((idx+1))
-               y=np.hstack((y_noisy,y_clean))
-               X_scaled = preprocessing.scale(X)
-               X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.35)
+                    X_noisy=np.vstack((X_noisy,Nxx))
+                    X_clean=np.vstack((X_clean,Cxx))
+                    
+                    
+          pdb.set_trace()
+          X=np.vstack((X_noisy,X_clean))
+          y_noisy=np.zeros((idx+1))
+          y_clean=np.ones((idx+1))
+          y=np.hstack((y_noisy,y_clean))
+#               X_scaled = preprocessing.scale(X)
+          X_scaled = X
+
+          X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.35)
                
 
      
-          clf = LogisticRegression()
+          clf = LogisticRegression(C=0.8)
 
           clf.fit(X_train, y_train)
           print("Model accuracy: {:.2f}%".format(clf.score(X_test, y_test)*100))
           station='kak'
-          validation_date=datetime.datetime(2005,4,1)
+          validation_date=datetime.datetime(2002,1,1)
           data_type='Z'
           analyze_validation_data(station, validation_date, data_type)
           
@@ -380,6 +405,6 @@ if __name__=='__main__':
           
      else:
           station='kak'
-          validation_date=datetime.datetime(2005,4,1)
+          validation_date=datetime.datetime(2002,1,1)
           data_type='Z'
           analyze_validation_data(station, validation_date, data_type)
