@@ -299,21 +299,25 @@ def analyze_validation_data(station_id, validation_date, data_type):
      decimation_level=5
      decimation_frequency=1/decimation_level   
      vd=ValidationData()
-     
-     vd.populate(station_id,validation_date,data_type)
 
+     vd.populate(station_id,validation_date,data_type)
      for wdx in np.arange(48):
-          validation_data = vd.select_decimate_and_detrend_data(wdx*duration, duration, decimation_level)
+          print(wdx)
+          selected_data=vd.data[int(wdx*1800):int((wdx+1)*1800)]
+          validation_data=signal.detrend(signal.decimate(selected_data,decimation_level,ftype='iir', axis=-1, zero_phase=True))
           Pxx, freqs = plt.psd(validation_data, NFFT=1024, Fs=decimation_frequency, detrend='mean',scale_by_freq=True)
           if wdx==0:
-              X_val=Pxx[0:100]/np.max(Pxx[0:100])
-              
+              X_val=Pxx[0:100]/np.max(Pxx[0:100])    
           else:
               X_val=np.vstack((X_val,Pxx[0:100]/np.max(Pxx[0:100])))
-#     X_validation = preprocessing.scale(X_val,0)       
-     X_validation = X_val      
+
+#     X_validation = preprocessing.scale(X_val,0)     
+     X_validation = X_val    
+
      prediction=clf.predict(X_validation)
+
      prediction_proba=clf.predict_proba(X_validation)
+
      vd.plot_prediction(prediction, prediction_proba, Fs=decimation_frequency,title=str(data_type)+'_'+str(validation_date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
      classes = {0: 'noisy', 1: 'clean'}
      colors = {0: 'red', 1: 'blue'}
@@ -327,7 +331,10 @@ def analyze_validation_data(station_id, validation_date, data_type):
 
    
 if __name__=='__main__':
-#     os.mkdir('./training_data')
+     
+     if not os.path.isdir('./training_data'):
+          os.mkdir('./training_data')
+          
      decimation_level=5
      decimated_frequency=1/decimation_level
      delta=end_date-start_date
@@ -360,8 +367,8 @@ if __name__=='__main__':
                Cxx, freqs=plt.psd(clean_data, NFFT=1024, Fs=decimated_frequency, detrend='mean',scale_by_freq=True) 
                
                plt.clf()
-               plt.plot(Nxx/np.max(Nxx), color='red', label='noisy')
-               plt.plot(Cxx/np.max(Cxx), color='blue', label='clean')
+               plt.plot(Nxx[0:100]/np.max(Nxx[0:100]), color='red', label='noisy')
+               plt.plot(Cxx[0:100]/np.max(Cxx[0:100]), color='blue', label='clean')
                plt.legend()
                plt.savefig('./training_data/'+str(idx)+'.png')
 #               
@@ -389,16 +396,16 @@ if __name__=='__main__':
 
           clf.fit(X_train, y_train)
           print("Model accuracy: {:.2f}%".format(clf.score(X_test, y_test)*100))
+          
+          
           station='kak'
-          validation_date=datetime.datetime(2003,5,23)
+          validation_date=datetime.datetime(2003,7,29)
           data_type='Z'
           analyze_validation_data(station, validation_date, data_type)
-          
-
 
           
      else:
           station='kak'
-          validation_date=datetime.datetime(2003,5,23)
+          validation_date=datetime.datetime(2003,7,29)
           data_type='Z'
           analyze_validation_data(station, validation_date, data_type)
