@@ -208,7 +208,7 @@ class RawData(object):
 class ValidationData(RawData):
 
 
-    def plot_prediction(self, prediction, Fs, title='', x_label='', y_label='', fig_size=None): 
+    def plot_prediction(self, prediction, prediction_proba, Fs, title='', x_label='', y_label='', fig_size=None): 
 
          
         classes = {0: 'noisy',
@@ -235,7 +235,7 @@ class ValidationData(RawData):
                   
         ax0.set_xlim(left=0,right=86400*Fs)
         ax1 = ax0.twinx()
-#        ax1.scatter(np.arange(48)*1800*Fs+900*Fs, prediction_proba[:,0], color='black')
+        ax1.scatter(np.arange(48)*1800*Fs+900*Fs, prediction_proba[:,0], color='black')
         ax1.set_ylabel("Probability",fontsize=20)
         ax1.tick_params(labelsize=20)
 
@@ -314,9 +314,9 @@ def analyze_validation_data(station_id, validation_date, data_type):
 
      prediction=clf.predict(X_validation)
 
-#     prediction_proba=clf.predict_proba(X_validation)
+     prediction_proba=clf.predict_proba(X_validation)
 
-     vd.plot_prediction(prediction, Fs=decimation_frequency,title=str(data_type)+'_'+str(validation_date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
+     vd.plot_prediction(prediction, prediction_proba, Fs=decimation_frequency,title=str(data_type)+'_'+str(validation_date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
      classes = {0: 'noisy', 1: 'clean'}
      colors = {0: 'red', 1: 'blue'}
      fig, axes = plt.subplots(8,6)
@@ -393,21 +393,21 @@ if __name__=='__main__':
                
 
      
-#          clf = LogisticRegression(C=0.9)
-          clf = svm.SVC(C=0.9)
+          clf = LogisticRegression(C=0.9)
+#          clf = svm.SVC(C=0.9)
 
           clf.fit(X_train, y_train)
           print("Model accuracy: {:.2f}%".format(clf.score(X_test, y_test)*100))
           
           
           station='kak'
-          validation_date=datetime.datetime(2008,12,1)
+          validation_date=datetime.datetime(2008,12,4)
           data_type='Z'
           analyze_validation_data(station, validation_date, data_type)
 
           
      else:
           station='kak'
-          validation_date=datetime.datetime(2008,12,1)
+          validation_date=datetime.datetime(2008,12,4)
           data_type='Z'
           analyze_validation_data(station, validation_date, data_type)
