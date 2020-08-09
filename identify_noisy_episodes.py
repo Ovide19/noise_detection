@@ -208,7 +208,7 @@ class RawData(object):
 class ValidationData(RawData):
 
 
-    def plot_prediction(self, prediction, prediction_proba, Fs, title='', x_label='', y_label='', fig_size=None): 
+    def plot_prediction(self, prediction, Fs, title='', x_label='', y_label='', fig_size=None): 
 
          
         classes = {0: 'noisy',
@@ -223,7 +223,6 @@ class ValidationData(RawData):
         ax0.set_title(title,fontsize=20) 
         ax0.plot(self.data, color='black')
         ax0.tick_params(labelsize=20)
-
         for wdx in np.arange(48):
              if str(classes[prediction[wdx]])=='noisy':     
                   ax0.axvline(int(wdx*1800*Fs),color='red',linestyle='--', label='test')
@@ -236,7 +235,7 @@ class ValidationData(RawData):
                   
         ax0.set_xlim(left=0,right=86400*Fs)
         ax1 = ax0.twinx()
-        ax1.scatter(np.arange(48)*1800*Fs+900, prediction_proba[:,0], color='black')
+#        ax1.scatter(np.arange(48)*1800*Fs+900*Fs, prediction_proba[:,0], color='black')
         ax1.set_ylabel("Probability",fontsize=20)
         ax1.tick_params(labelsize=20)
 
@@ -302,7 +301,6 @@ def analyze_validation_data(station_id, validation_date, data_type):
 
      vd.populate(station_id,validation_date,data_type)
      for wdx in np.arange(48):
-          print(wdx)
           selected_data=vd.data[int(wdx*1800):int((wdx+1)*1800)]
           validation_data=signal.detrend(signal.decimate(selected_data,decimation_level,ftype='iir', axis=-1, zero_phase=True))
           Pxx, freqs = plt.psd(validation_data, NFFT=1024, Fs=decimation_frequency, detrend='mean',scale_by_freq=True)
@@ -311,14 +309,14 @@ def analyze_validation_data(station_id, validation_date, data_type):
           else:
               X_val=np.vstack((X_val,Pxx[0:100]/np.max(Pxx[0:100])))
 
-#     X_validation = preprocessing.scale(X_val,0)     
-     X_validation = X_val    
+     X_validation = preprocessing.scale(X_val,0)     
+#     X_validation = X_val    
 
      prediction=clf.predict(X_validation)
 
-     prediction_proba=clf.predict_proba(X_validation)
+#     prediction_proba=clf.predict_proba(X_validation)
 
-     vd.plot_prediction(prediction, prediction_proba, Fs=decimation_frequency,title=str(data_type)+'_'+str(validation_date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
+     vd.plot_prediction(prediction, Fs=decimation_frequency,title=str(data_type)+'_'+str(validation_date.date()), x_label='UTC (hh:mm)', y_label='Frequency (Hz)')
      classes = {0: 'noisy', 1: 'clean'}
      colors = {0: 'red', 1: 'blue'}
      fig, axes = plt.subplots(8,6)
@@ -380,32 +378,36 @@ if __name__=='__main__':
                     X_noisy=np.vstack((X_noisy,Nxx[0:100]/np.max(Nxx[0:100])))
                     X_clean=np.vstack((X_clean,Cxx[0:100]/np.max(Cxx[0:100])))
                     
-                    
-          X=np.vstack((X_noisy,X_clean))
-          y_noisy=np.zeros((idx+1))
-          y_clean=np.ones((idx+1))
-          y=np.hstack((y_noisy,y_clean))
-#          X_scaled = preprocessing.scale(X)
-          X_scaled = X
+          indices_to_reject=[0,2,7,8,18,19,22,23,25,28,30,31,37,38,39,43,46,47,49,50,54,58,60,66,70,73,79,82,83,84,87,96,98,99,102,111,113,120,121,122,128,134,135,138,142,147,152,156,157,160,161,162,170,174,176,177,179,184,187,188,190,191,193,194,201,203,204,211,212,216,217,218,220,229,231,235,237,239,244,252,255,257,258,260,261,272,283,292,294,295,298,320,324,328,329,332,335,343,345,352,354,366,369,370,374,375,386,388,389,392,390,398,404,408,411,412,422,426,427,430,435,439,440,453,455,456,459,460,461,462,464,466,467,471,472,473,475,476,477,478,482,487,489,490,496,497,498,500,505,506,509,511,513,514,515,516,519,520,521,528,529,530,536,541,543,545,549,553,558,560,561,564,569,570,573,574,575,576,580,581,582,585,586,587,594,596,604,607,609,613,615,619,620,626,627,634,635,640,642,649,652,654,656,664,668,669,680,683,688,693,695,696,702,704,705,712,713,714,727]
+          X_noisy=np.delete(X_noisy, indices_to_reject, 0)
+          X_clean=np.delete(X_clean, indices_to_reject, 0)
 
-          X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.35)
+          X=np.vstack((X_noisy,X_clean))
+          y_noisy=np.zeros((X_noisy.shape[0]))
+          y_clean=np.ones((X_clean.shape[0]))
+          y=np.hstack((y_noisy,y_clean))
+          X_scaled = preprocessing.scale(X)
+#          X_scaled = X
+
+          X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2)
                
 
      
-          clf = LogisticRegression(C=0.8)
+#          clf = LogisticRegression(C=0.9)
+          clf = svm.SVC(C=0.9)
 
           clf.fit(X_train, y_train)
           print("Model accuracy: {:.2f}%".format(clf.score(X_test, y_test)*100))
           
           
           station='kak'
-          validation_date=datetime.datetime(2003,7,29)
+          validation_date=datetime.datetime(2008,12,1)
           data_type='Z'
           analyze_validation_data(station, validation_date, data_type)
 
           
      else:
           station='kak'
-          validation_date=datetime.datetime(2003,7,29)
+          validation_date=datetime.datetime(2008,12,1)
           data_type='Z'
           analyze_validation_data(station, validation_date, data_type)
